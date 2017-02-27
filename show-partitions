@@ -1,0 +1,39 @@
+#!/usr/bin/python
+
+import	os
+
+def contents( fn ):
+    if not os.path.exists( fn ):
+        return None
+    fyle = open( fn )
+    retval = fyle.readline().rstrip()
+    fyle.close()
+    return retval
+
+dns = os.listdir( '/sys/block' )
+dns.sort()
+for dn in dns:
+    bdev = os.sep.join( ('/sys/block', dn) )
+    parts = os.listdir( bdev )
+    parts.sort()
+    first = True
+    kind = '83'
+    for pn in parts:
+        start = os.sep.join( (bdev, pn, 'start') )
+        starts_on = contents( start )
+        size = os.sep.join( (bdev, pn, 'size') )
+        blocks_in = contents( size )
+        if starts_on and blocks_in:
+            if first:
+                first = False
+                print '# Device /dev/%s' % dn
+                print 'units: blocks'
+            # print '%-7s\t%-7s\t%10s:%s' % (dn, pn, starts_on, blocks_in)
+            # FIXME: The ending value is wrong for partition 4 (type=5)
+            unit = int( pn[len(dn):] )
+            print '%s : start=%9s, size=%9s, Id=%s' % (
+                '/dev/%s' % pn,
+                starts_on,
+                blocks_in,
+                ' 5' if unit == 4 else '83'
+            )
