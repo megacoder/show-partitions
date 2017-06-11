@@ -2,38 +2,66 @@
 
 import	os
 
-def contents( fn ):
-    if not os.path.exists( fn ):
-        return None
-    fyle = open( fn )
-    retval = fyle.readline().rstrip()
-    fyle.close()
-    return retval
-
-dns = os.listdir( '/sys/block' )
-dns.sort()
-for dn in dns:
-    bdev = os.sep.join( ('/sys/block', dn) )
-    parts = os.listdir( bdev )
-    parts.sort()
+devices = dict()
+sysdir = '/sys/block'
+max_start_width = 0
+max_size_width = 0
+for dn in sorted( os.listdir( sysdir ) ):
+    bdev = os.path.join( sysdir, dn )
     first = True
     kind = '83'
-    for pn in parts:
-        start = os.sep.join( (bdev, pn, 'start') )
-        starts_on = contents( start )
-        size = os.sep.join( (bdev, pn, 'size') )
-        blocks_in = contents( size )
-        if starts_on and blocks_in:
-            if first:
-                first = False
-                print '# Device /dev/%s' % dn
-                print 'units: blocks'
-            # print '%-7s\t%-7s\t%10s:%s' % (dn, pn, starts_on, blocks_in)
-            # FIXME: The ending value is wrong for partition 4 (type=5)
-            unit = int( pn[len(dn):] )
-            print '%s : start=%9s, size=%9s, Id=%s' % (
-                '/dev/%s' % pn,
-                starts_on,
-                blocks_in,
-                ' 5' if unit == 4 else '83'
-            )
+    partitions = dict()
+    for pn in sorted( os.listdir( bdev ) ):
+        fn = os.path.join( bdev, pn, 'start' )
+        if not os.path.isfile( fn ): continue
+        with open( fn ) as f:
+            starts_on = f.readline().rstrip()
+        fn = os.path.join( bdev, pn, 'size' )
+        if not os.path.isfile( fn ): continue
+        with open( fn ) as f:
+            blocks_in = f.readline().rstrip()
+        partitions[ pn ] = dict({ 'start' : starts_on, 'size' : blocks_in })
+        max_start_width = max(
+            max_start_width,
+            len( starts_on )
+        )
+        max_size_width = max(
+            max_size_width,
+            len( blocks_in )
+        )
+    if len(partitions):
+        devices[ bdev ] = partitions
+#
+max_name_width = max(
+    map(
+        len,
+        devices
+    )
+)
+fmt_name = '{{0:>{0}}}'.format( max_name_width )
+fmt_start = '{{0:>{0}}}'.format( max_start_width )
+fmt_size  = '{{0:>{0}}}'.format( max_size_width )
+#
+fmt_all = '{0} {1} {2}'
+print fmt_all.format(
+    fmt_name.format( 'Device' ),
+    fmt_start.format( 'Start' ),
+    fmt_size.format( 'Blocks' ),
+)
+print fmt_all.format(
+    fmt_name.format( '=' * max_name_width ),
+    fmt_start.format( '=' * max_start_width ),
+    fmt_size.format( '=' * max_size_width ),
+)
+for dev in sorted( devices ):
+    partitions = devices[ dev ]
+    print
+    for pn in sorted( partitions ):
+        partition = partitions[ pn ]
+        print fmt_all.format(
+            fmt_name.format(
+                '/dev/{0}'.format( pn )
+            ),
+            fmt_start.format( partition['start'] ),
+            fmt_size.format( partition['size'] ),
+        )
